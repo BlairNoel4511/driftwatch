@@ -1,0 +1,30 @@
+# driftwatch example configuration
+# Copy to driftwatch.yaml and adjust to your environment.
+
+# How often to poll monitored files for drift (default: 30s)
+poll_interval: 30s
+
+# Log verbosity: debug | info | warn | error
+log_level: info
+
+# List of infrastructure config files to monitor
+targets:
+  - name: nginx
+    path: /etc/nginx/nginx.conf
+    # Optional: pre-computed SHA-256 checksum of the declared state.
+    # If omitted, driftwatch records the checksum on first run.
+    # checksum: "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+
+  - name: sshd
+    path: /etc/ssh/sshd_config
+
+  - name: hosts
+    path: /etc/hosts
+
+# Alerting backends (at least one should be configured)
+alerting:
+  # HTTP POST JSON payload to this URL on drift detection
+  webhook_url: "https://hooks.example.com/driftwatch"
+
+  # Email address to notify (requires SMTP env vars)
+  email: "ops@example.com"
