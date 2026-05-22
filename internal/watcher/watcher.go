@@ -76,6 +76,18 @@ func (w *Watcher) Check() {
 	}
 }
 
+// Remove stops watching the given path and removes it from the snapshot.
+// Returns false if the path was not being watched.
+func (w *Watcher) Remove(path string) bool {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	_, exists := w.snapshot[path]
+	if exists {
+		delete(w.snapshot, path)
+	}
+	return exists
+}
+
 // statFile returns a FileState for the given path.
 func statFile(path string) (FileState, error) {
 	f, err := os.Open(path)
