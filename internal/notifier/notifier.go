@@ -1,81 +1,72 @@
-// Package notifier dispatches drift events to one or more alert sinks.
+// Package notifier fans out drift events to registered sinks and records
+// them in a history ring-buffer.
 package notifier
 
 import (
 	"context"
 	"log"
 
-	"github.com/yourorg/driftwatch/internal/alert"
-	"github.com/yourorg/driftwatch/internal/history"
-	"github.com/yourorg/driftwatch/internal/watcher"
+	"github.com/driftwatch/driftwatch/internal/alert"
+	"github.com/driftwatch/driftwatch/internal/history"
+	"github.com/driftwatch/driftwatch/internal/watcher"
 )
 
-// Sink is anything that can receive a drift notification.
+// Sink is any destination that can receive a drift notification.
 type Sink interface {
 	Notify(event watcher.DriftEvent) error
 }
 
-// Notifier fans out drift events to registered sinks and records them in history.
+// Notifier dispatches DriftEvents to one or more Sinks and keeps a History.
 type Notifier struct {
 	sinks   []Sink
 	history *history.History
-	logger  *log.Logger
+	events  <-chan watcher.DriftEvent
 }
 
-// New creates a Notifier. If logger is nil, output goes to stderr via alert defaults.
-func New(h *history.History, logger *log.Logger, sinks ...Sink) *Notifier {
-	if logger == nil {
-		logger = log.Default()
-	}
+// New creates a Notifier that reads from events and writes to the provided sinks.
+func New(events <-chan watcher.DriftEvent, h *history.History, sinks ...Sink) *Notifier {
 	return &Notifier{
 		sinks:   sinks,
 		history: h,
-		logger:  logger,
+		events:  events,
 	}
 }
 
-// AddSink appends a sink at runtime.
-func (n *Notifier) AddSink(s Sink) {
-	n.sinks = append(n.sinks, s)
-}
-
-// Run reads drift events from ch until ctx is cancelled.
-func (n *Notifier) Run(ctx context.Context, ch <-chan watcher.DriftEvent) {
+// Run processes events until ctx is cancelled.
+func (n *Notifier) Run(ctx context.Context) {
 	for {
 		select {
 		case <-ctx.Done():
 			return
-		case event, ok := <-ch:
+		case ev, ok := <-n.events:
 			if !ok {
 				return
 			}
-			n.dispatch(event)
+			n.dispatch(ev)
 		}
 	}
 }
 
-func (n *Notifier) dispatch(event watcher.DriftEvent) {
-	if n.history != nil {
-		n.history.Record(event)
-	}
+func (n *Notifier) dispatch(ev watcher.DriftEvent) {
+	n.history.Record(ev)
 	for _, s := range n.sinks {
-		if err := s.Notify(event); err != nil {
-			n.logger.Printf("notifier: sink error for %s: %v", event.Path, err)
+		if err := s.Notify(ev); err != nil {
+			log.Printf("notifier: sink error: %v", err)
 		}
 	}
 }
 
-// AlertSinkAdapter wraps *alert.Alert so it satisfies Sink.
-type AlertSinkAdapter struct {
-	a *alert.Alert
+// AlertSink wraps an *alert.Alerter to satisfy the Sink interface.
+type AlertSink struct {
+	alerter *alert.Alerter
 }
 
-// NewAlertSink creates an AlertSinkAdapter from an existing alert.Alert.
-func NewAlertSink(a *alert.Alert) *AlertSinkAdapter {
-	return &AlertSinkAdapter{a: a}
+// NewAlertSink creates an AlertSink backed by the given Alerter.
+func NewAlertSink(a *alert.Alerter) *AlertSink {
+	return &AlertSink{alerter: a}
 }
 
-// Notify implements Sink.
-func (as *AlertSinkAdapter) Notify(event watcher.DriftEvent) error {
-	return as.a.Notify(event)
+// Notify forwards the event to the underlying Alerter.
+func (s *AlertSink) Notify(ev watcher.DriftEvent) error {
+	return s.alerter.Notify(ev)
 }
