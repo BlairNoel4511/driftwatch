@@ -78,6 +78,12 @@ func TestReset_ClearsState(t *testing.T) {
 	}
 }
 
+func TestReset_UnknownKeyIsNoop(t *testing.T) {
+	b := New(base, max)
+	// Resetting a key that has never been used should not panic.
+	b.Reset("nonexistent")
+}
+
 func TestAttempts_TracksFailures(t *testing.T) {
 	b := New(base, max)
 	if b.Attempts("key") != 0 {
@@ -87,6 +93,16 @@ func TestAttempts_TracksFailures(t *testing.T) {
 	b.Next("key")
 	if got := b.Attempts("key"); got != 2 {
 		t.Fatalf("expected 2 attempts, got %d", got)
+	}
+}
+
+func TestAttempts_ResetsToCero(t *testing.T) {
+	b := New(base, max)
+	b.Next("key")
+	b.Next("key")
+	b.Reset("key")
+	if got := b.Attempts("key"); got != 0 {
+		t.Fatalf("expected 0 attempts after reset, got %d", got)
 	}
 }
 
