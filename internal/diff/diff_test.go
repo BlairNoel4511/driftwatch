@@ -96,3 +96,25 @@ func TestResult_Summary_ContainsPath(t *testing.T) {
 		t.Errorf("summary missing path: %s", res.Summary())
 	}
 }
+
+// TestCompare_MultipleFieldsChanged verifies that all changed fields are
+// reported when more than one attribute drifts in a single comparison.
+func TestCompare_MultipleFieldsChanged(t *testing.T) {
+	a, b := baseSnap(), baseSnap()
+	b.Size = 2048
+	b.Mode = fs.FileMode(0o600)
+	b.ModTime = t1
+	res := diff.Compare("/etc/app.conf", a, b)
+	if !res.HasDrift() {
+		t.Fatal("expected drift on multiple field changes")
+	}
+	if len(res.Changes) != 3 {
+		t.Fatalf("expected 3 changes, got %d", len(res.Changes))
+	}
+	wantFields := []string{diff.FieldSize, diff.FieldMode, diff.FieldModTime}
+	for i, want := range wantFields {
+		if res.Changes[i].Field != want {
+			t.Errorf("change[%d]: expected field %q, got %q", i, want, res.Changes[i].Field)
+		}
+	}
+}
