@@ -62,6 +62,17 @@ func TestAll_ReturnsAllEntries(t *testing.T) {
 	}
 }
 
+func TestAll_ReturnsEmptySliceWhenNoEntries(t *testing.T) {
+	r := New()
+	all := r.All()
+	if all == nil {
+		t.Fatal("expected non-nil slice, got nil")
+	}
+	if len(all) != 0 {
+		t.Fatalf("expected empty slice, got %d entries", len(all))
+	}
+}
+
 func TestLen_ReflectsRegistrations(t *testing.T) {
 	r := New()
 	if r.Len() != 0 {
